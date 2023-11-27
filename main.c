@@ -1,109 +1,180 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
-// Define process types
-enum ProcessType {
-    CPU_BOUND,
-    IO_BOUND
+#define MAX_PROCESS 100
+#define HIGH_PRIORITY 0
+#define LOW_PRIORITY 1
+#define DISK_IO_PRIORITY 2
+#define TAPE_IO_PRIORITY 3
+#define PRINTER_IO_PRIORITY 4
+#define TIME_QUANTUM 5
+
+struct Process {
+  int id;
+  int arrivalTime;
+  int burstTime;
+  int remainingTime;
+  int completionTime;
+  int turnaroundTime;
+  int waitingTime;
+  int priority;
+  int ioType;  // 0: None, 1: Disk, 2: Tape, 3: Printer
 };
 
-// Process Control Block (PCB) structure
-struct PCB {
-    int pid;             // Process ID
-    int priority;        // Priority of the process
-    int timeSlice;       // Time slice for CPU-bound processes
-    enum ProcessType type; // Type of process (CPU or I/O bound)
+struct Queue {
+  struct Process *array[MAX_PROCESS];
+  int front, rear;
 };
 
-// Node structure for the priority queue
-struct Node {
-    struct PCB data;
-    struct Node* next;
-};
-
-// Priority Queue structure
-struct PriorityQueue {
-    struct Node* front;
-};
-
-// Function to create a new node
-struct Node* createNode(struct PCB process) {
-    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
-    newNode->data = process;
-    newNode->next = NULL;
-    return newNode;
+void enqueue(struct Queue *q, struct Process *process) {
+  q->rear++;
+  q->array[q->rear] = process;
 }
 
-// Function to initialize an empty priority queue
-struct PriorityQueue* initPriorityQueue() {
-    struct PriorityQueue* queue = (struct PriorityQueue*)malloc(sizeof(struct PriorityQueue));
-    queue->front = NULL;
-    return queue;
+struct Process *dequeue(struct Queue *q) {
+  struct Process *process = q->array[q->front];
+  q->front++;
+  return process;
 }
 
-// Function to insert a process into the priority queue based on priority
-void enqueue(struct PriorityQueue* queue, struct PCB process) {
-    struct Node* newNode = createNode(process);
+int isEmpty(struct Queue *q) {
+  return q->front > q->rear;
+}
 
-    if (queue->front == NULL || process.priority > queue->front->data.priority) {
-        newNode->next = queue->front;
-        queue->front = newNode;
-    } else {
-        struct Node* current = queue->front;
-        while (current->next != NULL && current->next->data.priority >= process.priority) {
-            current = current->next;
+void initializeProcesses(struct Process processes[], int n) {
+  srand(time(NULL));
+  for (int i = 0; i < n; i++) {
+    processes[i].id = i + 1;
+    processes[i].arrivalTime = rand() % 10; // Random arrival time (0 to 9)
+    processes[i].burstTime = rand() % 20 + 1; // Random burst time (1 to 20)
+    processes[i].remainingTime = processes[i].burstTime;
+    processes[i].completionTime = 0;
+    processes[i].turnaroundTime = 0;
+    processes[i].waitingTime = 0;
+    processes[i].priority = HIGH_PRIORITY; // New processes start with high priority
+    processes[i].ioType = rand() % 4; // Random I/O type (0 to 3)
+  }
+}
+
+void calculateTimes(struct Process processes[], int n) {
+  struct Queue highPriorityQueue = { .front = 0, .rear = -1 };
+  struct Queue lowPriorityQueue = { .front = 0, .rear = -1 };
+  struct Queue diskIOQueue = { .front = 0, .rear = -1 };
+  struct Queue tapeIOQueue = { .front = 0, .rear = -1 };
+  struct Queue printerIOQueue = { .front = 0, .rear = -1 };
+
+  int currentTime = 0;
+  int allDone = 0;
+
+  while (!allDone) {
+    allDone = 1;
+
+    // Adiciona processos à fila de alta prioridade
+    for (int i = 0; i < n; i++) {
+      if (processes[i].arrivalTime <= currentTime && processes[i].remainingTime > 0) {
+        allDone = 0;
+        if (processes[i].priority == HIGH_PRIORITY) {
+          enqueue(&highPriorityQueue, &processes[i]);
+        } else if (processes[i].priority == LOW_PRIORITY) {
+          enqueue(&lowPriorityQueue, &processes[i]);
+        } else if (processes[i].priority == DISK_IO_PRIORITY) {
+          enqueue(&diskIOQueue, &processes[i]);
+        } else if (processes[i].priority == TAPE_IO_PRIORITY) {
+          enqueue(&tapeIOQueue, &processes[i]);
+        } else if (processes[i].priority == PRINTER_IO_PRIORITY) {
+          enqueue(&printerIOQueue, &processes[i]);
         }
-        newNode->next = current->next;
-        current->next = newNode;
+      }
     }
+
+    // Executa processos da fila de alta prioridade
+    while (!isEmpty(&highPriorityQueue)) {
+      struct Process *process = dequeue(&highPriorityQueue);
+      int slice = TIME_QUANTUM < process->remainingTime ? TIME_QUANTUM : process->remainingTime;
+      currentTime += slice;
+      process->remainingTime -= slice;
+
+      // Simula I/O aleatório
+      if (process->remainingTime > 0 && rand() % 2 == 0) {
+        process->ioType = rand() % 3 + 1; // 1: Disk, 2: Tape, 3: Printer
+        process->priority = process->ioType == DISK_IO_PRIORITY ? LOW_PRIORITY : HIGH_PRIORITY;
+      }
+    }
+
+    // Adiciona processos à fila de baixa prioridade
+    while (!isEmpty(&diskIOQueue)) {
+      struct Process *process = dequeue(&diskIOQueue);
+      process->ioType = 0; // Fim da operação de I/O
+      enqueue(&lowPriorityQueue, process);
+    }
+
+    // Adiciona processos à fila de alta prioridade
+    while (!isEmpty(&tapeIOQueue)) {
+      struct Process *process = dequeue(&tapeIOQueue);
+      process->ioType = 0; // Fim da operação de I/O
+      enqueue(&highPriorityQueue, process);
+    }
+
+    // Adiciona processos à fila de alta prioridade
+    while (!isEmpty(&printerIOQueue)) {
+      struct Process *process = dequeue(&printerIOQueue);
+      process->ioType = 0; // Fim da operação de I/O
+      enqueue(&highPriorityQueue, process);
+    }
+
+    // Executa processos da fila de baixa prioridade
+    while (!isEmpty(&lowPriorityQueue)) {
+      struct Process *process = dequeue(&lowPriorityQueue);
+      int slice = TIME_QUANTUM < process->remainingTime ? TIME_QUANTUM : process->remainingTime;
+      currentTime += slice;
+      process->remainingTime -= slice;
+
+      // Simula I/O aleatório
+      if (process->remainingTime > 0 && rand() % 2 == 0) {
+        process->ioType = rand() % 3 + 1; // 1: Disk, 2: Tape, 3: Printer
+        process->priority = process->ioType == DISK_IO_PRIORITY ? LOW_PRIORITY : HIGH_PRIORITY;
+      }
+    }
+  }
+
+  // Calcula turnaround e waiting time
+  for (int i = 0; i < n; i++) {
+    processes[i].completionTime = processes[i].arrivalTime + processes[i].turnaroundTime;
+    processes[i].turnaroundTime = processes[i].completionTime - processes[i].arrivalTime;
+    processes[i].waitingTime = processes[i].turnaroundTime - processes[i].burstTime;
+  }
 }
 
-// Function to remove and return the highest priority process from the queue
-struct PCB dequeue(struct PriorityQueue* queue) {
-    if (queue->front == NULL) {
-        // Queue is empty, return an empty PCB
-        struct PCB emptyPCB = { -1, 0, 0, CPU_BOUND };
-        return emptyPCB;
-    }
-
-    struct Node* temp = queue->front;
-    struct PCB dequeuedProcess = temp->data;
-    queue->front = temp->next;
-    free(temp);
-    return dequeuedProcess;
+void printTable(struct Process processes[], int n) {
+  printf("--------------------------------------------------------------------"
+          "----------------------\n");
+  printf("| Process | Arrival Time | Burst Time | Completion Time | "
+          "Turnaround Time | Waiting Time | Priority | I/O Type |\n");
+  printf("--------------------------------------------------------------------"
+          "----------------------\n");
+  for (int i = 0; i < n; i++) {
+    printf("|    %d    |      %d      |     %d     |        %d        |        %d         |      %d      |    %d    |     %d    |\n",
+           processes[i].id, processes[i].arrivalTime, processes[i].burstTime,
+           processes[i].completionTime, processes[i].turnaroundTime,
+           processes[i].waitingTime, processes[i].priority, processes[i].ioType);
+  }
+  printf("--------------------------------------------------------------------"
+          "----------------------\n");
 }
 
 int main() {
-    // Example usage
+  int n;
+  printf("Enter The Number of Process: ");
+  scanf("%d", &n);
 
-    // Initialize a priority queue
-    struct PriorityQueue* processQueue = initPriorityQueue();
+  struct Process processes[MAX_PROCESS];
+  initializeProcesses(processes, n);
 
-    // Example processes
-    struct PCB process1 = {1, 2, 10, CPU_BOUND};
-    struct PCB process2 = {2, 1, 5, IO_BOUND};
-    struct PCB process3 = {3, 3, 8, CPU_BOUND};
+  calculateTimes(processes, n);
 
-    // Enqueue processes
-    enqueue(processQueue, process1);
-    enqueue(processQueue, process2);
-    enqueue(processQueue, process3);
+  printf("\nRound Robin Scheduling Results:\n");
+  printTable(processes, n);
 
-    // Dequeue and process each process in order of priority
-    while (processQueue->front != NULL) {
-        struct PCB currentProcess = dequeue(processQueue);
-
-        // Simulate processing the current process
-        printf("Processing Process ID %d with priority %d\n", currentProcess.pid, currentProcess.priority);
-
-        // Additional simulation logic can be added here
-
-        // For simplicity, let's assume each process is processed for its time slice
-        // For IO-bound processes, you may simulate IO operations
-
-        // Simulate processing time
-        printf("Process ID %d completed its time slice or IO operation\n", currentProcess.pid);
-    }
-
-    return 0;
+  return 0;
 }
