@@ -55,9 +55,8 @@ int isEmpty(struct Queue *q)
 
 void initializeProcesses(struct Process processes[], int n)
 {
-  /*
+  
   srand(time(NULL));
-  int IO[] = {DISK_IO_PRIORITY, TAPE_IO_PRIORITY, PRINTER_IO_PRIORITY};
 
   for (int i = 0; i < n; i++) {
     processes[i].id = i + 1;
@@ -68,39 +67,39 @@ void initializeProcesses(struct Process processes[], int n)
     processes[i].turnaroundTime = 0;
     processes[i].waitingTime = 0;
     processes[i].priority = HIGH_PRIORITY; // New processes start with high priority
-    processes[i].ioType = IO[rand() % 3]; // Random I/O type
+    processes[i].ioType = rand() % 3 + 1; // Random I/O type
   }
-  */
+  
 
-  processes[0].id = 1;
-  processes[0].arrivalTime = 0; // Random arrival time (0 to 9)
-  processes[0].burstTime = 4;   // Random burst time (1 to 20)
-  processes[0].remainingTime = 4;
-  processes[0].completionTime = 0;
-  processes[0].turnaroundTime = 0;
-  processes[0].waitingTime = 0;
-  processes[0].priority = HIGH_PRIORITY; // New processes start with high priority
-  processes[0].ioType = 2;               // Random I/O type
+  // processes[0].id = 1;
+  // processes[0].arrivalTime = 0; // Random arrival time (0 to 9)
+  // processes[0].burstTime = 4;   // Random burst time (1 to 20)
+  // processes[0].remainingTime = 4;
+  // processes[0].completionTime = 0;
+  // processes[0].turnaroundTime = 0;
+  // processes[0].waitingTime = 0;
+  // processes[0].priority = HIGH_PRIORITY; // New processes start with high priority
+  // processes[0].ioType = 2;               // Random I/O type
 
-  processes[1].id = 2;
-  processes[1].arrivalTime = 1; // Random arrival time (0 to 9)
-  processes[1].burstTime = 5;   // Random burst time (1 to 20)
-  processes[1].remainingTime = processes[1].burstTime;
-  processes[1].completionTime = 0;
-  processes[1].turnaroundTime = 0;
-  processes[1].waitingTime = 0;
-  processes[1].priority = HIGH_PRIORITY; // New processes start with high priority
-  processes[1].ioType = 3;               // Random I/O type
+  // processes[1].id = 2;
+  // processes[1].arrivalTime = 1; // Random arrival time (0 to 9)
+  // processes[1].burstTime = 5;   // Random burst time (1 to 20)
+  // processes[1].remainingTime = processes[1].burstTime;
+  // processes[1].completionTime = 0;
+  // processes[1].turnaroundTime = 0;
+  // processes[1].waitingTime = 0;
+  // processes[1].priority = HIGH_PRIORITY; // New processes start with high priority
+  // processes[1].ioType = 3;               // Random I/O type
 
-  processes[2].id = 3;
-  processes[2].arrivalTime = 2; // Random arrival time (0 to 9)
-  processes[2].burstTime = 2;   // Random burst time (1 to 20)
-  processes[2].remainingTime = processes[2].burstTime;
-  processes[2].completionTime = 0;
-  processes[2].turnaroundTime = 0;
-  processes[2].waitingTime = 0;
-  processes[2].priority = HIGH_PRIORITY; // New processes start with high priority
-  processes[2].ioType = 4;               // Random I/O type
+  // processes[2].id = 3;
+  // processes[2].arrivalTime = 2; // Random arrival time (0 to 9)
+  // processes[2].burstTime = 2;   // Random burst time (1 to 20)
+  // processes[2].remainingTime = processes[2].burstTime;
+  // processes[2].completionTime = 0;
+  // processes[2].turnaroundTime = 0;
+  // processes[2].waitingTime = 0;
+  // processes[2].priority = HIGH_PRIORITY; // New processes start with high priority
+  // processes[2].ioType = 4;               // Random I/O type
 }
 
 void calculateTimes(struct Process processes[], int n, int quantum)
@@ -249,50 +248,21 @@ void printTable(struct Process processes[], int n)
          "--------------------------------------- \n");
 }
 
-void imprimirTabela(int n) {
-    // Imprimir cabeçalho
-    printf("-");
-    for (int i = 0; i <= n+1; ++i) {
-        printf("----");
-    }
-    printf("\n");
-
-    // Imprimir conteúdo
-    for (int i = 1; i <= n; ++i) {
-        printf("P%d ",i);
-        printf("|");
-        for (int j = 1; j <= n; ++j) {
-            printf(" *** |", (i - 1) * n + j);
-        }
-        printf("\n");
-
-        // Imprimir linha divisória entre as linhas
-        printf("-");
-        for (int k = 0; k <= n +1; ++k) {
-            printf("----");
-        }
-        printf("\n");
-    }
-}
-
-
 int main()
 {
-  int n = 3;
-  // printf("Quantidade de Processos: ");
-  // scanf("%d", &n);
+  int n;
+  printf("Quantidade de Processos: ");
+  scanf("%d", &n);
 
   struct Process processes[MAX_PROCESS];
-  initializeProcesses(processes, 3);
+  initializeProcesses(processes, n);
 
-  calculateTimes(processes, n, 3);
+  calculateTimes(processes, n, TIME_QUANTUM);
   calculateTurnaroundTime(processes, n);
   calculateWaitingTime(processes, n);
 
   printf("\n Escalonamento Round Robin:\n");
   printTable(processes, n);
-
-    imprimirTabela(n);
 
   return 0;
 }
