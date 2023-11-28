@@ -10,8 +10,8 @@
 #define TAPE_IO_PRIORITY 3
 #define PRINTER_IO_PRIORITY 4
 
-#define DISK_TIME 3
-#define TAPE_TIME 2
+#define DISK_TIME 2
+#define TAPE_TIME 3
 #define PRINTER_TIME 4
 
 #define TIME_QUANTUM 3
@@ -103,18 +103,7 @@ void initializeProcesses(struct Process processes[], int n)
   processes[2].ioType = 4;               // Random I/O type
 }
 
-void treatIO(struct Process process[], int n, struct Queue lowPriorityQueue)
-{
-  static int disc = 0, print = 0, tape = 0;
-
-  if (process->ioType == 2)
-  {
-    disc = +1;
-    enqueue(&lowPriorityQueue, process);
-  }
-}
-
-void calculateTimes(struct Process processes[], int n)
+void calculateTimes(struct Process processes[], int n, int quantum)
 {
   struct Queue highPriorityQueue = {.front = 0, .rear = -1};
   struct Queue lowPriorityQueue = {.front = 0, .rear = -1};
@@ -122,151 +111,112 @@ void calculateTimes(struct Process processes[], int n)
   struct Queue tapeIOQueue = {.front = 0, .rear = -1};
   struct Queue printerIOQueue = {.front = 0, .rear = -1};
 
+  int remainingTime[n];
+  
+  static int disc = 0, tape = 0, printer = 0;
+  
+  for (int i = 0; i < n; i++)
+  {
+    remainingTime[i] = processes[i].burstTime;
+  }
+  
   int currentTime = 0;
   int allDone = 0;
-  static int disc = 0, tape = 0, printer = 0;
-
+  
+  struct Process *process;
+  
   while (!allDone)
   {
     allDone = 1;
 
     for (int i = 0; i < n; i++)
     {
-
-      if (processes[i].arrivalTime <= currentTime && processes[i].remainingTime > 0)
+      if (remainingTime[i] > 0)
       {
         allDone = 0;
-        if (processes[i].ioType == DISK_IO_PRIORITY)
+        if (remainingTime[i] > 0)
         {
-          enqueue(&diskIOQueue, &processes[i]);
+
+          if (processes[i].arrivalTime <= currentTime && processes[i].remainingTime > 0)
+          {
+            if (processes[i].ioType == DISK_IO_PRIORITY)
+            {
+              enqueue(&diskIOQueue, &processes[i]);
+            }
+            else if (processes[i].ioType == TAPE_IO_PRIORITY)
+            {
+              enqueue(&tapeIOQueue, &processes[i]);
+            }
+            else if (processes[i].ioType == PRINTER_IO_PRIORITY)
+            {
+              enqueue(&printerIOQueue, &processes[i]);
+            }
+            else if (processes[i].priority == HIGH_PRIORITY)
+            {
+              enqueue(&highPriorityQueue, &processes[i]);
+            }
+            else if (processes[i].priority == LOW_PRIORITY)
+            {
+              enqueue(&lowPriorityQueue, &processes[i]);
+            }
+          }
         }
-        else if (processes[i].ioType == TAPE_IO_PRIORITY)
+        // Executa processos da fila de alta prioridade
+        if (!isEmpty(&highPriorityQueue))
         {
-          enqueue(&tapeIOQueue, &processes[i]);
+          process = dequeue(&highPriorityQueue);
         }
-        else if (processes[i].ioType == PRINTER_IO_PRIORITY)
+        else if (!isEmpty(&diskIOQueue))
         {
-          enqueue(&printerIOQueue, &processes[i]);
+          disc += 1;
+          if (disc % DISK_TIME == 0)
+          {
+            process = dequeue(&diskIOQueue);
+            process->ioType = 0; // Fim da operação de I/O
+            enqueue(&lowPriorityQueue, process);
+          }
         }
-        else if (processes[i].priority == HIGH_PRIORITY)
+        else if (!isEmpty(&tapeIOQueue))
         {
-          enqueue(&highPriorityQueue, &processes[i]);
+          tape += 1;
+          if (tape % TAPE_TIME == 0)
+          {
+            process = dequeue(&tapeIOQueue);
+            process->ioType = 0; // Fim da operação de I/O
+            enqueue(&highPriorityQueue, process);
+          }
         }
-        else if (processes[i].priority == LOW_PRIORITY)
+        else if (!isEmpty(&printerIOQueue))
         {
-          enqueue(&lowPriorityQueue, &processes[i]);
+          printer += 1;
+          if (printer % PRINTER_TIME == 0)
+          {
+            process = dequeue(&printerIOQueue);
+            process->ioType = 0; // Fim da operação de I/O
+            enqueue(&highPriorityQueue, process);
+          }
         }
-      }
-    }
-
-    // Executa processos da fila de alta prioridade
-    while (!isEmpty(&highPriorityQueue))
-    {
-      struct Process *process = dequeue(&highPriorityQueue);
-      // int slice = TIME_QUANTUM < process->remainingTime ? TIME_QUANTUM : process->remainingTime;
-      // currentTime += slice;
-      // process->remainingTime -= slice;
-      if (process->remainingTime > 0)
-      {
-
-        if (process->remainingTime > TIME_QUANTUM)
+        else if (!isEmpty(&lowPriorityQueue))
         {
-          currentTime = currentTime + TIME_QUANTUM;
-          process->remainingTime = process->remainingTime - TIME_QUANTUM;
+          process = dequeue(&lowPriorityQueue);
         }
-        else
+
+        if (remainingTime[i] > quantum)
         {
-          currentTime = currentTime + process->remainingTime;
-          processes->completionTime = currentTime;
-          process->remainingTime = 0;
-        }
-      }
-      // if (process->remainingTime > 0) {
-      //   // process->ioType = rand() % 3 + 2; // 2: Disk, 3: Tape, 4: Printer
-      //   process->priority = process->ioType == DISK_IO_PRIORITY ? LOW_PRIORITY : HIGH_PRIORITY;
-      // }
-    }
-
-    // Adiciona processos à fila de baixa prioridade
-    if (!isEmpty(&diskIOQueue))
-    {
-      disc += 1;
-      if (disc % DISK_TIME == 0)
-      {
-        struct Process *process = dequeue(&diskIOQueue);
-         process->ioType = 0; // Fim da operação de I/O
-        enqueue(&lowPriorityQueue, process);
-      }
-    }
-
-    // Adiciona processos à fila de alta prioridade
-    if (!isEmpty(&tapeIOQueue))
-    {
-      tape += 1;
-      if (tape % TAPE_TIME == 0)
-      {
-        struct Process *process = dequeue(&tapeIOQueue);
-         process->ioType = 0; // Fim da operação de I/O
-        enqueue(&highPriorityQueue, process);
-      }
-    }
-
-    // Adiciona processos à fila de alta prioridade
-    if (!isEmpty(&printerIOQueue))
-    {
-      printer += 1;
-      if (printer % PRINTER_TIME == 0)
-      {
-        struct Process *process = dequeue(&printerIOQueue);
-         process->ioType = 0; // Fim da operação de I/O
-        enqueue(&highPriorityQueue, process);
-      }
-    }
-
-    // Executa processos da fila de baixa prioridade
-    while (!isEmpty(&lowPriorityQueue))
-    {
-      struct Process *process = dequeue(&lowPriorityQueue);
-      // int slice = TIME_QUANTUM < process->remainingTime ? TIME_QUANTUM : process->remainingTime;
-      // currentTime += slice;
-      // process->remainingTime -= slice;
-
-      if (process->remainingTime > 0)
-      {
-
-        if (process->remainingTime > TIME_QUANTUM)
-        {
-          currentTime = currentTime + TIME_QUANTUM;
-          process->remainingTime = process->remainingTime - TIME_QUANTUM;
+          currentTime = currentTime + quantum;
+          remainingTime[i] = remainingTime[i] - quantum;
         }
         else
         {
-          currentTime = currentTime + process->remainingTime;
-          processes->completionTime = currentTime;
-          process->remainingTime = 0;
+          currentTime = currentTime + remainingTime[i];
+          processes[i].completionTime = currentTime;
+          remainingTime[i] = 0;
         }
       }
-      // if (process->remainingTime == 0)
-      // {
-      //   process->turnaroundTime = currentTime - process->arrivalTime;
-      // }
-
-      // // Simula I/O aleatório
-      // if (process->remainingTime > 0 && rand() % 2 == 0) {
-      //   process->ioType = rand() % 3 + 1; // 1: Disk, 2: Tape, 3: Printer
-      //   process->priority = process->ioType == DISK_IO_PRIORITY ? LOW_PRIORITY : HIGH_PRIORITY;
-      // }
     }
   }
-
-  // // Calcula turnaround e waiting time
-  // for (int i = 0; i < n; i++)
-  // {
-  //   // processes[i].turnaroundTime = processes[i].completionTime - processes[i].arrivalTime;
-  //   processes[i].completionTime = processes[i].arrivalTime + processes[i].turnaroundTime;
-  //   processes[i].waitingTime = processes[i].turnaroundTime - processes[i].burstTime;
-  // }
 }
+
 
 void calculateTurnaroundTime(struct Process processes[], int n)
 {
@@ -283,21 +233,48 @@ void calculateWaitingTime(struct Process processes[], int n)
 void printTable(struct Process processes[], int n)
 {
   printf("--------------------------------------------------------------------"
-         "----------------------------------------------------------------\n");
+         "--------------------------------------- \n");
   printf("| Processo | Tempo de ativacao | Tempo de execucao | Tempo de conclusao | "
-         "Turnaround | Tempo de espera | Prioridade | Tipo de I/O |\n");
-  printf("--------------------------------------------------------------------"
-         "----------------------------------------------------------------\n");
+         "Turnaround | Tempo de espera |\n");
+ printf("--------------------------------------------------------------------"
+         "--------------------------------------- \n");
   for (int i = 0; i < n; i++)
   {
-    printf("|    %d     |          %d        |       %d        |        %d        |        %d         |      %d      |    %d    |     %d    |\n",
+    printf("|    %d     |          %-2d        |         %-2d        |        %-2d        |        %-2d         |      %-2d      |\n",
            processes[i].id, processes[i].arrivalTime, processes[i].burstTime,
            processes[i].completionTime, processes[i].turnaroundTime,
-           processes[i].waitingTime, processes[i].priority, processes[i].ioType);
+           processes[i].waitingTime);
   }
-  printf("--------------------------------------------------------------------"
-         "----------------------------------------------------------------\n");
+ printf("--------------------------------------------------------------------"
+         "--------------------------------------- \n");
 }
+
+void imprimirTabela(int n) {
+    // Imprimir cabeçalho
+    printf("-");
+    for (int i = 0; i <= n+1; ++i) {
+        printf("----");
+    }
+    printf("\n");
+
+    // Imprimir conteúdo
+    for (int i = 1; i <= n; ++i) {
+        printf("P%d ",i);
+        printf("|");
+        for (int j = 1; j <= n; ++j) {
+            printf(" *** |", (i - 1) * n + j);
+        }
+        printf("\n");
+
+        // Imprimir linha divisória entre as linhas
+        printf("-");
+        for (int k = 0; k <= n +1; ++k) {
+            printf("----");
+        }
+        printf("\n");
+    }
+}
+
 
 int main()
 {
@@ -308,12 +285,14 @@ int main()
   struct Process processes[MAX_PROCESS];
   initializeProcesses(processes, 3);
 
-  calculateTimes(processes, n);
-  // calculateTurnaroundTime(processes, n);
-  // calculateWaitingTime(processes, n);
+  calculateTimes(processes, n, 3);
+  calculateTurnaroundTime(processes, n);
+  calculateWaitingTime(processes, n);
 
   printf("\n Escalonamento Round Robin:\n");
   printTable(processes, n);
+
+    imprimirTabela(n);
 
   return 0;
 }
