@@ -2,45 +2,53 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define MAX_PROCESS 100
+// Algumas premissas usadas na construção do código
+#define MAX_PROCESS 50
 #define HIGH_PRIORITY 0
 #define LOW_PRIORITY 1
 
+// Valores para identificar o tipo de prioridade de cada I/O
 #define DISK_IO_PRIORITY 2
 #define TAPE_IO_PRIORITY 3
 #define PRINTER_IO_PRIORITY 4
 
+// Tempo de cada I/O
 #define DISK_TIME 2
 #define TAPE_TIME 3
 #define PRINTER_TIME 4
 
+// Tempo de quantum fixo
 #define TIME_QUANTUM 3
 
+// Definição da estrutura dos processos
 struct Process
 {
-  int id;
-  int arrivalTime;
-  int burstTime;
-  int remainingTime;
-  int completionTime;
-  int turnaroundTime;
-  int waitingTime;
-  int priority;
-  int ioType; // 0: Nenhum, 1: Disco, 2: Fita, 3: Impressora
+  int id;             // PID
+  int arrivalTime;    // Tempo de ativação
+  int burstTime;      // Tempo de execução
+  int remainingTime;  // Tempo de execução restante do processo
+  int completionTime; // Tempo de conclusão
+  int turnaroundTime; // Turnaround do processo
+  int waitingTime;    // Tempo de espera
+  int priority;       // Prioridade de execução
+  int ioType;         // Tipo de I/O --> 0: Nenhum, 1: Disco, 2: Fita, 3: Impressora
 };
 
+// Definição das filas
 struct Queue
 {
   struct Process *array[MAX_PROCESS];
   int front, rear;
 };
 
+// Estrutura para enfilar os processos
 void enqueue(struct Queue *q, struct Process *process)
 {
   q->rear++;
   q->array[q->rear] = process;
 }
 
+// Estrutura para desenfilar os processos
 struct Process *dequeue(struct Queue *q)
 {
   struct Process *process = q->array[q->front];
@@ -48,61 +56,33 @@ struct Process *dequeue(struct Queue *q)
   return process;
 }
 
+// Verificação para checar se as filas realmente estão vazias
 int isEmpty(struct Queue *q)
 {
   return q->front > q->rear;
 }
 
+// Função para inicializar os processos
 void initializeProcesses(struct Process processes[], int n)
 {
-  
+  // Semente para a função random
   srand(time(NULL));
 
   for (int i = 0; i < n; i++) {
-    processes[i].id = i + 1;
-    processes[i].arrivalTime = rand() % 10; // Random arrival time (0 to 9)
-    processes[i].burstTime = rand() % 20 + 1; // Random burst time (1 to 20)
+    processes[i].id = i;
+    processes[i].arrivalTime = rand() % 10; // Tempo de ativação aleatório (entre 0 a 9)
+    processes[i].burstTime = rand() % 10 + 1; // Tempo de execução aleatório (entre 1 a 20)
     processes[i].remainingTime = processes[i].burstTime;
     processes[i].completionTime = 0;
     processes[i].turnaroundTime = 0;
     processes[i].waitingTime = 0;
-    processes[i].priority = HIGH_PRIORITY; // New processes start with high priority
-    processes[i].ioType = rand() % 3 + 1; // Random I/O type
+    processes[i].priority = HIGH_PRIORITY; // Novos processo sempre começam com prioridade alta
+    processes[i].ioType = rand() % 4; // Tipo de I/O aleatório: 0: Nenhum, 1: Disco, 2: Fita, 3: Impressora
   }
-  
-
-  // processes[0].id = 1;
-  // processes[0].arrivalTime = 0; // Random arrival time (0 to 9)
-  // processes[0].burstTime = 4;   // Random burst time (1 to 20)
-  // processes[0].remainingTime = 4;
-  // processes[0].completionTime = 0;
-  // processes[0].turnaroundTime = 0;
-  // processes[0].waitingTime = 0;
-  // processes[0].priority = HIGH_PRIORITY; // New processes start with high priority
-  // processes[0].ioType = 2;               // Random I/O type
-
-  // processes[1].id = 2;
-  // processes[1].arrivalTime = 1; // Random arrival time (0 to 9)
-  // processes[1].burstTime = 5;   // Random burst time (1 to 20)
-  // processes[1].remainingTime = processes[1].burstTime;
-  // processes[1].completionTime = 0;
-  // processes[1].turnaroundTime = 0;
-  // processes[1].waitingTime = 0;
-  // processes[1].priority = HIGH_PRIORITY; // New processes start with high priority
-  // processes[1].ioType = 3;               // Random I/O type
-
-  // processes[2].id = 3;
-  // processes[2].arrivalTime = 2; // Random arrival time (0 to 9)
-  // processes[2].burstTime = 2;   // Random burst time (1 to 20)
-  // processes[2].remainingTime = processes[2].burstTime;
-  // processes[2].completionTime = 0;
-  // processes[2].turnaroundTime = 0;
-  // processes[2].waitingTime = 0;
-  // processes[2].priority = HIGH_PRIORITY; // New processes start with high priority
-  // processes[2].ioType = 4;               // Random I/O type
 }
 
-void calculateTimes(struct Process processes[], int n, int quantum)
+// Função para simular o escalonamento dos processos
+void processScheduling(struct Process processes[], int n, int quantum)
 {
   struct Queue highPriorityQueue = {.front = 0, .rear = -1};
   struct Queue lowPriorityQueue = {.front = 0, .rear = -1};
@@ -111,19 +91,22 @@ void calculateTimes(struct Process processes[], int n, int quantum)
   struct Queue printerIOQueue = {.front = 0, .rear = -1};
 
   int remainingTime[n];
-  
+
+  // varáveis estáticas para calcular o tempo de bloqueio para cada tipo de I/O
   static int disc = 0, tape = 0, printer = 0;
-  
+
+  // variável auxliar
   for (int i = 0; i < n; i++)
   {
-    remainingTime[i] = processes[i].burstTime;
+    remainingTime[i] = processes[i].remainingTime;
   }
-  
+
   int currentTime = 0;
   int allDone = 0;
-  
+
+ //inicializa a estrutura dos processos
   struct Process *process;
-  
+
   while (!allDone)
   {
     allDone = 1;
@@ -133,38 +116,38 @@ void calculateTimes(struct Process processes[], int n, int quantum)
       if (remainingTime[i] > 0)
       {
         allDone = 0;
-        if (remainingTime[i] > 0)
-        {
 
-          if (processes[i].arrivalTime <= currentTime && processes[i].remainingTime > 0)
+        //Verificamos o tempo de ativação de cada processo e se ainda precisa executar
+        // Se precisar executar, alocamos o processo na fila de prioridade correta
+        if ((processes[i].arrivalTime <= currentTime && processes[i].remainingTime > 0) && remainingTime[i] > 0)
+        {
+          if (processes[i].ioType == DISK_IO_PRIORITY)
           {
-            if (processes[i].ioType == DISK_IO_PRIORITY)
-            {
-              enqueue(&diskIOQueue, &processes[i]);
-            }
-            else if (processes[i].ioType == TAPE_IO_PRIORITY)
-            {
-              enqueue(&tapeIOQueue, &processes[i]);
-            }
-            else if (processes[i].ioType == PRINTER_IO_PRIORITY)
-            {
-              enqueue(&printerIOQueue, &processes[i]);
-            }
-            else if (processes[i].priority == HIGH_PRIORITY)
-            {
-              enqueue(&highPriorityQueue, &processes[i]);
-            }
-            else if (processes[i].priority == LOW_PRIORITY)
-            {
-              enqueue(&lowPriorityQueue, &processes[i]);
-            }
+            enqueue(&diskIOQueue, &processes[i]);
+          }
+          else if (processes[i].ioType == TAPE_IO_PRIORITY)
+          {
+            enqueue(&tapeIOQueue, &processes[i]);
+          }
+          else if (processes[i].ioType == PRINTER_IO_PRIORITY)
+          {
+            enqueue(&printerIOQueue, &processes[i]);
+          }
+          else if (processes[i].priority == HIGH_PRIORITY)
+          {
+            enqueue(&highPriorityQueue, &processes[i]);
+          }
+          else if (processes[i].priority == LOW_PRIORITY)
+          {
+            enqueue(&lowPriorityQueue, &processes[i]);
           }
         }
+
         // Executa processos da fila de alta prioridade
         if (!isEmpty(&highPriorityQueue))
         {
           process = dequeue(&highPriorityQueue);
-        }
+        }// Verifica se existe processo para fazer I/O de disco
         else if (!isEmpty(&diskIOQueue))
         {
           disc += 1;
@@ -174,7 +157,7 @@ void calculateTimes(struct Process processes[], int n, int quantum)
             process->ioType = 0; // Fim da operação de I/O
             enqueue(&lowPriorityQueue, process);
           }
-        }
+        }  // Verifica se existe processo para fazer I/O de fita
         else if (!isEmpty(&tapeIOQueue))
         {
           tape += 1;
@@ -184,7 +167,7 @@ void calculateTimes(struct Process processes[], int n, int quantum)
             process->ioType = 0; // Fim da operação de I/O
             enqueue(&highPriorityQueue, process);
           }
-        }
+        } // Verifica se existe processo para fazer I/O de impressora
         else if (!isEmpty(&printerIOQueue))
         {
           printer += 1;
@@ -194,20 +177,21 @@ void calculateTimes(struct Process processes[], int n, int quantum)
             process->ioType = 0; // Fim da operação de I/O
             enqueue(&highPriorityQueue, process);
           }
-        }
+        } // Verifica se existe processo na fila de baixa prioridade -> última a ser executada
         else if (!isEmpty(&lowPriorityQueue))
         {
           process = dequeue(&lowPriorityQueue);
         }
 
+        // Se o tempo de execução for que um quantum, avançamos na execução e calculamos o tempo restante para o processo acabar
         if (remainingTime[i] > quantum)
         {
           currentTime = currentTime + quantum;
           remainingTime[i] = remainingTime[i] - quantum;
-        }
+        }// Se o processo tiver acabado, salvamos esse valor e encerramos a execução
         else
         {
-          currentTime = currentTime + remainingTime[i];
+          currentTime = currentTime + quantum;
           processes[i].completionTime = currentTime;
           remainingTime[i] = 0;
         }
@@ -217,25 +201,29 @@ void calculateTimes(struct Process processes[], int n, int quantum)
 }
 
 
+//Função para calcular o Turnaround
 void calculateTurnaroundTime(struct Process processes[], int n)
 {
   for (int i = 0; i < n; i++)
     processes[i].turnaroundTime = processes[i].completionTime - processes[i].arrivalTime;
 }
 
+//Função para calcular o tempo de espera de cada processo
 void calculateWaitingTime(struct Process processes[], int n)
 {
   for (int i = 0; i < n; i++)
     processes[i].waitingTime = processes[i].turnaroundTime - processes[i].burstTime;
 }
 
+
+//Aqui imprimimos a tabela resultado do escalonamento dos processos
 void printTable(struct Process processes[], int n)
 {
   printf("--------------------------------------------------------------------"
          "--------------------------------------- \n");
   printf("| Processo | Tempo de ativacao | Tempo de execucao | Tempo de conclusao | "
-         "Turnaround | Tempo de espera |\n");
- printf("--------------------------------------------------------------------"
+         "   Turnaround   | Tempo de espera |\n");
+  printf("--------------------------------------------------------------------"
          "--------------------------------------- \n");
   for (int i = 0; i < n; i++)
   {
@@ -244,7 +232,7 @@ void printTable(struct Process processes[], int n)
            processes[i].completionTime, processes[i].turnaroundTime,
            processes[i].waitingTime);
   }
- printf("--------------------------------------------------------------------"
+  printf("--------------------------------------------------------------------"
          "--------------------------------------- \n");
 }
 
@@ -257,7 +245,7 @@ int main()
   struct Process processes[MAX_PROCESS];
   initializeProcesses(processes, n);
 
-  calculateTimes(processes, n, TIME_QUANTUM);
+  processScheduling(processes, n, TIME_QUANTUM);
   calculateTurnaroundTime(processes, n);
   calculateWaitingTime(processes, n);
 
