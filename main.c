@@ -68,17 +68,52 @@ void initializeProcesses(struct Process processes[], int n)
   // Semente para a função random
   srand(time(NULL));
 
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++)
+  {
     processes[i].id = i;
-    processes[i].arrivalTime = rand() % 10; // Tempo de ativação aleatório (entre 0 a 9)
+    processes[i].arrivalTime = rand() % 10;   // Tempo de ativação aleatório (entre 0 a 9)
     processes[i].burstTime = rand() % 10 + 1; // Tempo de execução aleatório (entre 1 a 20)
     processes[i].remainingTime = processes[i].burstTime;
     processes[i].completionTime = 0;
     processes[i].turnaroundTime = 0;
     processes[i].waitingTime = 0;
     processes[i].priority = HIGH_PRIORITY; // Novos processo sempre começam com prioridade alta
-    processes[i].ioType = rand() % 4; // Tipo de I/O aleatório: 0: Nenhum, 1: Disco, 2: Fita, 3: Impressora
+    processes[i].ioType = rand() % 4;      // Tipo de I/O aleatório: 0: Nenhum, 1: Disco, 2: Fita, 3: Impressora
   }
+}
+
+// Função para calcular o Turnaround
+void calculateTurnaroundTime(struct Process processes[], int n)
+{
+  for (int i = 0; i < n; i++)
+    processes[i].turnaroundTime = processes[i].completionTime - processes[i].arrivalTime;
+}
+
+// Função para calcular o tempo de espera de cada processo
+void calculateWaitingTime(struct Process processes[], int n)
+{
+  for (int i = 0; i < n; i++)
+    processes[i].waitingTime = processes[i].turnaroundTime - processes[i].burstTime;
+}
+
+// Aqui imprimimos a tabela resultado do escalonamento dos processos
+void printTable(struct Process processes[], int n)
+{
+  printf("--------------------------------------------------------------------"
+         "--------------------------------------- \n");
+  printf("| Processo | Tempo de ativacao | Tempo de execucao | Tempo de conclusao | "
+         "   Turnaround   | Tempo de espera |\n");
+  printf("--------------------------------------------------------------------"
+         "--------------------------------------- \n");
+  for (int i = 0; i < n; i++)
+  {
+    printf("|    %d     |          %-2d        |         %-2d        |        %-2d        |        %-2d         |      %-2d      |\n",
+           processes[i].id, processes[i].arrivalTime, processes[i].burstTime,
+           processes[i].completionTime, processes[i].turnaroundTime,
+           processes[i].waitingTime);
+  }
+  printf("--------------------------------------------------------------------"
+         "--------------------------------------- \n");
 }
 
 // Função para simular o escalonamento dos processos
@@ -91,6 +126,8 @@ void processScheduling(struct Process processes[], int n, int quantum)
   struct Queue printerIOQueue = {.front = 0, .rear = -1};
 
   int remainingTime[n];
+  int ready_Queue[n];
+  static int counter = 0;
 
   // varáveis estáticas para calcular o tempo de bloqueio para cada tipo de I/O
   static int disc = 0, tape = 0, printer = 0;
@@ -104,7 +141,7 @@ void processScheduling(struct Process processes[], int n, int quantum)
   int currentTime = 0;
   int allDone = 0;
 
- //inicializa a estrutura dos processos
+  // inicializa a estrutura dos processos
   struct Process *process;
 
   while (!allDone)
@@ -117,8 +154,8 @@ void processScheduling(struct Process processes[], int n, int quantum)
       {
         allDone = 0;
 
-        //Verificamos o tempo de ativação de cada processo e se ainda precisa executar
-        // Se precisar executar, alocamos o processo na fila de prioridade correta
+        // Verificamos o tempo de ativação de cada processo e se ainda precisa executar
+        //  Se precisar executar, alocamos o processo na fila de prioridade correta
         if ((processes[i].arrivalTime <= currentTime && processes[i].remainingTime > 0) && remainingTime[i] > 0)
         {
           if (processes[i].ioType == DISK_IO_PRIORITY)
@@ -147,7 +184,7 @@ void processScheduling(struct Process processes[], int n, int quantum)
         if (!isEmpty(&highPriorityQueue))
         {
           process = dequeue(&highPriorityQueue);
-        }// Verifica se existe processo para fazer I/O de disco
+        } // Verifica se existe processo para fazer I/O de disco
         else if (!isEmpty(&diskIOQueue))
         {
           disc += 1;
@@ -157,7 +194,7 @@ void processScheduling(struct Process processes[], int n, int quantum)
             process->ioType = 0; // Fim da operação de I/O
             enqueue(&lowPriorityQueue, process);
           }
-        }  // Verifica se existe processo para fazer I/O de fita
+        } // Verifica se existe processo para fazer I/O de fita
         else if (!isEmpty(&tapeIOQueue))
         {
           tape += 1;
@@ -188,52 +225,45 @@ void processScheduling(struct Process processes[], int n, int quantum)
         {
           currentTime = currentTime + quantum;
           remainingTime[i] = remainingTime[i] - quantum;
-        }// Se o processo tiver acabado, salvamos esse valor e encerramos a execução
+        } // Se o processo tiver acabado, salvamos esse valor e encerramos a execução
         else
         {
           currentTime = currentTime + quantum;
           processes[i].completionTime = currentTime;
+          ready_Queue[counter++] = processes[i].id;
           remainingTime[i] = 0;
         }
       }
     }
   }
-}
 
-
-//Função para calcular o Turnaround
-void calculateTurnaroundTime(struct Process processes[], int n)
-{
-  for (int i = 0; i < n; i++)
-    processes[i].turnaroundTime = processes[i].completionTime - processes[i].arrivalTime;
-}
-
-//Função para calcular o tempo de espera de cada processo
-void calculateWaitingTime(struct Process processes[], int n)
-{
-  for (int i = 0; i < n; i++)
-    processes[i].waitingTime = processes[i].turnaroundTime - processes[i].burstTime;
-}
-
-
-//Aqui imprimimos a tabela resultado do escalonamento dos processos
-void printTable(struct Process processes[], int n)
-{
-  printf("--------------------------------------------------------------------"
-         "--------------------------------------- \n");
-  printf("| Processo | Tempo de ativacao | Tempo de execucao | Tempo de conclusao | "
-         "   Turnaround   | Tempo de espera |\n");
-  printf("--------------------------------------------------------------------"
-         "--------------------------------------- \n");
-  for (int i = 0; i < n; i++)
+  if (allDone)
   {
-    printf("|    %d     |          %-2d        |         %-2d        |        %-2d        |        %-2d         |      %-2d      |\n",
-           processes[i].id, processes[i].arrivalTime, processes[i].burstTime,
-           processes[i].completionTime, processes[i].turnaroundTime,
-           processes[i].waitingTime);
+    calculateTurnaroundTime(processes, n);
+    calculateWaitingTime(processes, n);
+
+    printf("\n Escalonamento Round Robin:\n");
+    printTable(processes, n);
+
+    printf("\n Ordem de finalizacao dos processos \n");
+
+    for (int i = 0; i < n; ++i)
+    {
+      printf("-------");
+    }
+    printf("\n");
+    for (int i = 0; i < n; ++i)
+    {
+      printf(" | ");
+      printf(" P%d ", ready_Queue[i]);
+    }
+    printf("\n");
+    for (int i = 0; i < n; ++i)
+    {
+      printf("-------");
+    }
+    printf("\n");
   }
-  printf("--------------------------------------------------------------------"
-         "--------------------------------------- \n");
 }
 
 int main()
@@ -246,11 +276,5 @@ int main()
   initializeProcesses(processes, n);
 
   processScheduling(processes, n, TIME_QUANTUM);
-  calculateTurnaroundTime(processes, n);
-  calculateWaitingTime(processes, n);
-
-  printf("\n Escalonamento Round Robin:\n");
-  printTable(processes, n);
-
   return 0;
 }
